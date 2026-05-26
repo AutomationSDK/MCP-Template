@@ -32,6 +32,83 @@ npm install @modelcontextprotocol/sdk
 3. Create the Server Core (index.mjs)
 Create a file named exactly index.mjs. Using the .mjs extension forces Node.js to recognize modern ES module imports cleanly, bypassing configuration conflicts.
 
+Paste the following logic into index.mjs:
+
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+
+// Initialize the local MCP Server
+const server = new Server(
+  {
+    name: "automation-hub-server",
+    version: "1.0.0",
+  },
+  {
+    capabilities: {
+      tools: {}, 
+    },
+  }
+);
+
+// Define your custom tool schema (The "Cognition Layer")
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: "calculate_efficiency",
+        description: "Calculates time saved by automating a repetitive task.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            taskName: { type: "string", description: "Name of the manual task" },
+            manualMinutes: { type: "number", description: "Minutes spent manually per day" },
+            automatedMinutes: { type: "number", description: "Minutes spent after automation" },
+          },
+          required: ["taskName", "manualMinutes", "automatedMinutes"],
+        },
+      },
+    ],
+  };
+});
+
+// Handle the tool execution logic
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  if (request.params.name === "calculate_efficiency") {
+    const { taskName, manualMinutes, automatedMinutes } = request.params.arguments;
+    
+    const dailySaved = manualMinutes - automatedMinutes;
+    const yearlySavedHours = Math.round((dailySaved * 365) / 60);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `📊 Automation Report for '${taskName}':\n` +
+                `- Time saved per day: ${dailySaved} minutes.\n` +
+                `- Total efficiency gained: ${yearlySavedHours} hours saved per year! 🚀`,
+        },
+      ],
+    };
+  }
+
+  throw new Error(`Tool not found: ${request.params.name}`);
+});
+
+// Boot up the server over stdio transport
+async function runServer() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("MCP Server running smoothly on stdio!");
+}
+
+runServer().catch((error) => {
+  console.error("Fatal error running MCP server:", error);
+  process.exit(1);
+});
 
 🔍 Testing Locally with MCP Inspector
 To test your custom server without configuring a massive client application, use the official browser-based developer suite. Run this command directly from your terminal workspace:
